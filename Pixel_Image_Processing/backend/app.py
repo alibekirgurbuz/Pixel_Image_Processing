@@ -46,12 +46,22 @@ def save_settings(settings):
 settings = load_settings()
 
 # Filtre fonksiyonları
-def apply_filter(image, filter_type, brightness=1.0):
+def apply_filter(image, filter_type, brightness=1.0, contrast=1.0):
     # Önce parlaklık ayarını uygula
     if brightness != 1.0:
         # BGR resim için parlaklık ayarını hesapla
         adjusted = image.astype('float32')
         adjusted = adjusted * float(brightness)
+        # Değerleri 0-255 aralığında sınırla
+        adjusted = np.clip(adjusted, 0, 255)
+        # Tekrar uint8 formatına çevir
+        image = adjusted.astype('uint8')
+    
+    # Kontrast ayarını uygula
+    if contrast != 1.0:
+        # Kontrast formülü: pixel = (pixel - 128) * contrast + 128
+        adjusted = image.astype('float32')
+        adjusted = (adjusted - 128) * float(contrast) + 128
         # Değerleri 0-255 aralığında sınırla
         adjusted = np.clip(adjusted, 0, 255)
         # Tekrar uint8 formatına çevir
@@ -181,6 +191,7 @@ def process_image():
     save_original = request.form.get('saveOriginal', 'true').lower() == 'true'
     filter_type = request.form.get('filter', 'gray')  # Varsayılan filtre: gri
     brightness = float(request.form.get('brightness', '1.0'))  # Varsayılan parlaklık: 1.0
+    contrast = float(request.form.get('contrast', '1.0'))  # Varsayılan kontrast: 1.0
     
     # Dosyayı belleğe oku
     file_bytes = file.read()
@@ -189,8 +200,8 @@ def process_image():
     nparr = np.frombuffer(file_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     
-    # Seçilen filtreyi ve parlaklık ayarını uygula
-    filtered_img = apply_filter(img, filter_type, brightness)
+    # Seçilen filtreyi ve parlaklık/kontrast ayarlarını uygula
+    filtered_img = apply_filter(img, filter_type, brightness, contrast)
     
     # Tek kanallıysa (gri tonlama) 3 kanala çevir
     if len(filtered_img.shape) == 2:
@@ -212,7 +223,8 @@ def process_image():
         'processed_image_base64': img_data,
         'image_id': image_id,
         'filter_applied': filter_type,
-        'brightness': brightness
+        'brightness': brightness,
+        'contrast': contrast
     }), 200
 
 # Ayarları güncelle

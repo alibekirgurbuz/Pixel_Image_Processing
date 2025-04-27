@@ -30,9 +30,6 @@ const API_URL = 'http://192.168.1.50:5000'; // Sunucunun gerçek IP adresi
 const FILTERS = [
   { id: 'gray', name: 'Gri Ton', icon: '🌫️', description: 'Gri tonlama filtresi uygular' },
   { id: 'negative', name: 'Negatif', icon: '🔄', description: 'Negatif görüntü filtresi' },
-  { id: 'brightness_up', name: 'Parlaklık ↑', icon: '☀️', description: 'Parlaklığı artırır' },
-  { id: 'brightness_down', name: 'Parlaklık ↓', icon: '🌙', description: 'Parlaklığı azaltır' },
-  { id: 'contrast_up', name: 'Kontrast ↑', icon: '📊', description: 'Kontrastı artırır' },
   { id: 'threshold', name: 'Eşikleme', icon: '⚪', description: 'Eşikleme filtresi uygular' },
   { id: 'histogram', name: 'Histogram', icon: '📈', description: 'Histogram eşitleme uygular' },
   { id: 'rgb_split', name: 'RGB\'ye Ayır', icon: '🎨', description: 'RGB kanallarını ayrıştırır' },
@@ -40,9 +37,15 @@ const FILTERS = [
   { id: 'cold', name: 'Soğuk', icon: '❄️', description: 'Soğuk renk tonu filtresi uygular' },
 ];
 
+// Ayarlanabilir parametreler (İkonlar ve Sliderlar için)
+const ADJUSTMENTS = [
+  { id: 'brightness', name: 'Parlaklık', icon: '☀️', min: 0.5, max: 2.0, step: 0.05, defaultValue: 1.0 },
+  { id: 'contrast', name: 'Kontrast', icon: '📊', min: 0.5, max: 2.0, step: 0.05, defaultValue: 1.0 },
+];
+
 // Ekran genişliğine göre grid boyutu ayarla
 const { width } = Dimensions.get('window');
-const ITEM_WIDTH = 110; // Yatay liste için eleman genişliği
+const ITEM_WIDTH = 80; // Yatay liste için eleman genişliği
 
 export default function HomeScreen() {
   const [imageUri, setImageUri] = useState(null);
@@ -54,6 +57,8 @@ export default function HomeScreen() {
   const [currentFilterName, setCurrentFilterName] = useState('Orijinal'); // Mevcut filtre adı
   const [isSaving, setIsSaving] = useState(false); // Kaydetme durumu için state
   const [brightness, setBrightness] = useState(1.0); // Parlaklık değeri için state
+  const [contrast, setContrast] = useState(1.0); // Kontrast değeri için state
+  const [activeAdjustment, setActiveAdjustment] = useState(null); // Aktif ayar için state
   
   const route = useRoute();
   const navigation = useNavigation();
@@ -102,7 +107,7 @@ export default function HomeScreen() {
   };
 
   // Seçilen filtreyi uygula
-  const applyFilter = async (filterId, brightnessValue = brightness) => {
+  const applyFilter = async (filterId, brightnessValue = brightness, contrastValue = contrast) => {
     if (!imageUri) return;
     
     setSelectedFilter(filterId);
@@ -120,9 +125,10 @@ export default function HomeScreen() {
     formData.append('saveOriginal', saveOriginal.toString());
     formData.append('filter', filterId);
     formData.append('brightness', brightnessValue.toString()); // Parlaklık değerini ekle
+    formData.append('contrast', contrastValue.toString()); // Kontrast değerini ekle
     
     try {
-      console.log('Filtre uygulanıyor...', filterId, 'Parlaklık:', brightnessValue);
+      console.log('Filtre uygulanıyor...', filterId, 'Parlaklık:', brightnessValue, 'Kontrast:', contrastValue);
       
       const response = await fetch(`${API_URL}/process-image`, {
         method: 'POST',
@@ -205,15 +211,54 @@ export default function HomeScreen() {
     }
   };
 
-  // Parlaklık değiştiğinde görseli güncelle
-  const handleBrightnessChange = (value) => {
-    setBrightness(value);
+  // Ayar ikonu render fonksiyonu
+  const renderAdjustmentItem = ({ item }) => {
+    const isActive = activeAdjustment === item.id;
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.adjustmentItem,
+          isActive && styles.activeAdjustmentItem
+        ]}
+        onPress={() => setActiveAdjustment(isActive ? null : item.id)}
+        disabled={isUploading || !processedImageUri}
+      >
+        <Text style={styles.adjustmentIcon}>{item.icon}</Text>
+        <Text style={styles.adjustmentName}>{item.name}</Text>
+      </TouchableOpacity>
+    );
   };
 
-  // Parlaklık ayarı bırakıldığında görseli işle
-  const handleBrightnessComplete = () => {
+  // Slider için mevcut aktif ayarın değerini al
+  const getActiveAdjustmentValue = () => {
+    if (activeAdjustment === 'brightness') {
+      return brightness;
+    } else if (activeAdjustment === 'contrast') {
+      return contrast;
+    }
+    return 1.0; // Varsayılan değer
+  };
+
+  // Slider için mevcut aktif ayarın ayarlarını al
+  const getActiveAdjustmentSettings = () => {
+    const adjustment = ADJUSTMENTS.find(a => a.id === activeAdjustment);
+    return adjustment || ADJUSTMENTS[0]; // Bulunamazsa ilk ayarı varsayılan olarak kullan
+  };
+
+  // Slider değeri değiştiğinde çağrılır
+  const handleSliderValueChange = (value) => {
+    if (activeAdjustment === 'brightness') {
+      setBrightness(value);
+    } else if (activeAdjustment === 'contrast') {
+      setContrast(value);
+    }
+  };
+
+  // Slider kaydırma tamamlandığında çağrılır
+  const handleSliderComplete = () => {
     if (imageUri && selectedFilter) {
-      applyFilter(selectedFilter, brightness);
+      applyFilter(selectedFilter, brightness, contrast);
     }
   };
 
@@ -234,99 +279,133 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <Button title="Fotoğraf Seç" onPress={pickImage} />
-        
-        {imageUri && !processedImageUri && (
-          <View style={styles.imageContainer}>
-            <Text style={styles.imageLabel}>Orijinal Görsel</Text>
-            <Image 
-              source={{ uri: imageUri }} 
-              style={styles.image}
-            />
-          </View>
-        )}
-        
-        {processedImageUri && (
-          <View style={styles.imageContainer}>
-            <View style={styles.imageHeaderContainer}>
-              <Text style={styles.imageLabel}>{currentFilterName} Uygulanmış</Text>
-              <TouchableOpacity 
-                style={styles.saveButton}
-                onPress={saveProcessedImage}
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <ActivityIndicator size="small" color="#4CAF50" />
-                ) : (
-                  <Ionicons name="save-outline" size={24} color="#4CAF50" />
-                )}
-              </TouchableOpacity>
-            </View>
-            <Image 
-              source={{ uri: processedImageUri }} 
-              style={styles.image}
-            />
-            
-            {/* Parlaklık slider'ı */}
-            <View style={styles.brightnessContainer}>
-              <Text style={styles.brightnessLabel}>Parlaklık: {brightness.toFixed(2)}x</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0.5}
-                maximumValue={2.0}
-                step={0.05}
-                value={brightness}
-                onValueChange={handleBrightnessChange}
-                onSlidingComplete={handleBrightnessComplete}
-                minimumTrackTintColor="#4CAF50"
-                maximumTrackTintColor="#000000"
-                thumbTintColor="#4CAF50"
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.container}>
+          {/* Fotoğraf Seç artı butonu */}
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={pickImage}
+          >
+            <Ionicons name="add" size={28} color="white" />
+          </TouchableOpacity>
+          
+          {imageUri && !processedImageUri && (
+            <View style={styles.imageContainer}>
+              <Text style={styles.imageLabel}>Orijinal Görsel</Text>
+              <Image 
+                source={{ uri: imageUri }} 
+                style={styles.image}
               />
-              <View style={styles.sliderLabels}>
-                <Text style={styles.sliderMinLabel}>0.5x</Text>
-                <Text style={styles.sliderMaxLabel}>2.0x</Text>
-              </View>
             </View>
-          </View>
-        )}
-        
-        {imageUri && (
-          <View style={styles.filterContainer}>
-            <Text style={styles.filterTitle}>İşlemi Seçin:</Text>
-            <FlatList
-              ref={flatListRef}
-              data={FILTERS}
-              renderItem={renderFilterItem}
-              keyExtractor={(item) => item.id}
-              horizontal={true}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filtersList}
-              pagingEnabled={false}
-              disableIntervalMomentum={true}
-              decelerationRate="fast"
-              snapToOffsets={FILTERS.map((_, i) => (i * (ITEM_WIDTH + 10)))}
-              snapToAlignment="start"
-              onScrollEndDrag={e => {
-                const scrollX = e.nativeEvent.contentOffset.x;
-                const itemIndex = Math.round(scrollX / (ITEM_WIDTH + 10));
-                flatListRef.current?.scrollToOffset({
-                  offset: itemIndex * (ITEM_WIDTH + 10),
-                  animated: true
-                });
-              }}
-            />
-          </View>
-        )}
-        
-        {isUploading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
-            <Text style={styles.loadingText}>İşleniyor...</Text>
-          </View>
-        )}
-        {error && <Text style={styles.errorText}>{error}</Text>}
-      </View>
+          )}
+          
+          {processedImageUri && (
+            <View style={styles.imageContainer}>
+              <View style={styles.imageHeaderContainer}>
+                <Text style={styles.imageLabel}>{currentFilterName} Uygulanmış</Text>
+                <TouchableOpacity 
+                  style={styles.saveButton}
+                  onPress={saveProcessedImage}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color="#4CAF50" />
+                  ) : (
+                    <Ionicons name="save-outline" size={18} color="#4CAF50" />
+                  )}
+                </TouchableOpacity>
+              </View>
+              <Image 
+                source={{ uri: processedImageUri }} 
+                style={styles.image}
+              />
+            </View>
+          )}
+          
+          {imageUri && (
+            <View style={styles.filterContainer}>
+              <Text style={styles.filterTitle}>İşlemi Seçin:</Text>
+              <FlatList
+                ref={flatListRef}
+                data={FILTERS}
+                renderItem={renderFilterItem}
+                keyExtractor={(item) => item.id}
+                horizontal={true}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filtersList}
+                pagingEnabled={false}
+                disableIntervalMomentum={true}
+                decelerationRate="fast"
+                snapToOffsets={FILTERS.map((_, i) => (i * (ITEM_WIDTH + 6)))}
+                snapToAlignment="start"
+                onScrollEndDrag={e => {
+                  const scrollX = e.nativeEvent.contentOffset.x;
+                  const itemIndex = Math.round(scrollX / (ITEM_WIDTH + 6));
+                  flatListRef.current?.scrollToOffset({
+                    offset: itemIndex * (ITEM_WIDTH + 6),
+                    animated: true
+                  });
+                }}
+              />
+            </View>
+          )}
+          
+          {processedImageUri && (
+            <View style={styles.adjustmentsContainer}>
+              <Text style={styles.adjustmentsTitle}>Ayarlar:</Text>
+              <View style={styles.adjustmentsRow}>
+                {ADJUSTMENTS.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      styles.adjustmentItem,
+                      activeAdjustment === item.id && styles.activeAdjustmentItem
+                    ]}
+                    onPress={() => setActiveAdjustment(activeAdjustment === item.id ? null : item.id)}
+                    disabled={isUploading}
+                  >
+                    <Text style={styles.adjustmentIcon}>{item.icon}</Text>
+                    <Text style={styles.adjustmentName}>{item.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              {activeAdjustment && (
+                <View style={styles.sliderContainer}>
+                  <Text style={styles.sliderValue}>
+                    {activeAdjustment === 'brightness' ? 'Parlaklık' : 'Kontrast'}: 
+                    {getActiveAdjustmentValue().toFixed(2)}x
+                  </Text>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={getActiveAdjustmentSettings().min}
+                    maximumValue={getActiveAdjustmentSettings().max}
+                    step={getActiveAdjustmentSettings().step}
+                    value={getActiveAdjustmentValue()}
+                    onValueChange={handleSliderValueChange}
+                    onSlidingComplete={handleSliderComplete}
+                    minimumTrackTintColor="#4CAF50"
+                    maximumTrackTintColor="#000000"
+                    thumbTintColor="#4CAF50"
+                  />
+                  <View style={styles.sliderLabels}>
+                    <Text style={styles.sliderMinLabel}>{getActiveAdjustmentSettings().min}x</Text>
+                    <Text style={styles.sliderMaxLabel}>{getActiveAdjustmentSettings().max}x</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+          
+          {isUploading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#4CAF50" />
+              <Text style={styles.loadingText}>İşleniyor...</Text>
+            </View>
+          )}
+          {error && <Text style={styles.errorText}>{error}</Text>}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -334,18 +413,22 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? 25 : 0,
+    paddingTop: Platform.OS === 'android' ? 20 : 0,
+    backgroundColor: '#f5f5f5'
+  },
+  scrollView: {
+    flex: 1,
     backgroundColor: '#f5f5f5'
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 10,
     backgroundColor: '#f5f5f5'
   },
   imageContainer: {
-    marginVertical: 20,
+    marginVertical: 8,
     alignItems: 'center',
     width: '100%',
   },
@@ -354,111 +437,172 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 10,
-    marginBottom: 8,
+    paddingHorizontal: 5,
+    marginBottom: 5,
   },
   imageLabel: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#333',
     flex: 1,
   },
   saveButton: {
-    padding: 8,
-    borderRadius: 20,
+    padding: 4,
+    borderRadius: 12,
     backgroundColor: '#f0f0f0',
   },
   image: {
-    width: 300,
-    height: 300,
-    borderRadius: 10,
+    width: 220,
+    height: 220,
+    borderRadius: 6,
   },
   loadingContainer: {
     position: 'absolute',
     backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 10,
-    padding: 20,
+    borderRadius: 6,
+    padding: 10,
     alignItems: 'center',
   },
   loadingText: {
     color: 'white',
-    marginTop: 10,
+    marginTop: 5,
+    fontSize: 10,
   },
   errorText: {
     color: 'red',
-    marginTop: 10,
-    textAlign: 'center'
+    marginTop: 5,
+    textAlign: 'center',
+    fontSize: 10,
   },
   filterContainer: {
     width: '100%',
-    marginBottom: 20,
-    marginTop: 20,
+    marginBottom: 8,
+    marginTop: 8,
   },
   filterTitle: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 5,
     textAlign: 'center'
   },
   filtersList: {
-    paddingVertical: 10,
-    paddingHorizontal: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
   },
   filterItem: {
     width: ITEM_WIDTH,
-    marginHorizontal: 5,
-    padding: 12,
+    marginHorizontal: 3,
+    padding: 6,
     backgroundColor: 'white',
-    borderRadius: 10,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 1,
+    elevation: 1,
   },
   selectedFilterItem: {
     backgroundColor: '#e8f5e9',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#4CAF50',
   },
   filterIcon: {
-    fontSize: 24,
-    marginBottom: 8,
+    fontSize: 16,
+    marginBottom: 4,
   },
   filterName: {
-    fontSize: 14,
+    fontSize: 10,
     textAlign: 'center',
   },
-  // Parlaklık slider'ı için stiller
-  brightnessContainer: {
+  // Ayarlar için stiller
+  adjustmentsContainer: {
     width: '100%',
-    marginTop: 20,
-    paddingHorizontal: 15,
+    marginTop: 4,
+    marginBottom: 8,
+    backgroundColor: 'white',
+    borderRadius: 6,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
   },
-  brightnessLabel: {
-    fontSize: 14,
+  adjustmentsTitle: {
+    fontSize: 12,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 6,
+    textAlign: 'center'
+  },
+  adjustmentsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 6,
+  },
+  adjustmentItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#f5f5f5',
+    width: '45%',
+  },
+  activeAdjustmentItem: {
+    backgroundColor: '#e8f5e9',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  adjustmentIcon: {
+    fontSize: 14,
+    marginBottom: 3,
+  },
+  adjustmentName: {
+    fontSize: 10,
     textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  sliderContainer: {
+    padding: 6,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  sliderValue: {
+    textAlign: 'center',
+    fontSize: 10,
+    marginBottom: 4,
   },
   slider: {
     width: '100%',
-    height: 40,
+    height: 25,
   },
   sliderLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    marginTop: -10,
+    marginTop: 1,
   },
   sliderMinLabel: {
-    fontSize: 12,
+    fontSize: 8,
     color: '#666',
   },
   sliderMaxLabel: {
-    fontSize: 12,
+    fontSize: 8,
     color: '#666',
+  },
+  addButton: {
+    backgroundColor: '#4CAF50',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+    marginVertical: 10,
   },
 });
