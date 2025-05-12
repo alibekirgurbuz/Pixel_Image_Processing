@@ -12,7 +12,9 @@ import {
   Dimensions,
   ScrollView,
   SafeAreaView,
-  Platform
+  Platform,
+  Modal,
+  TouchableWithoutFeedback
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
@@ -28,6 +30,7 @@ const API_URL = 'http://192.168.1.50:5000'; // Sunucunun gerçek IP adresi
 
 // Kullanılabilir filtreler listesi
 const FILTERS = [
+  { id: 'original', name: 'Orijinal', icon: '🖼️', description: 'Orijinal görsel' },
   { id: 'gray', name: 'Gri Ton', icon: '🌫️', description: 'Gri tonlama filtresi uygular' },
   { id: 'negative', name: 'Negatif', icon: '🔄', description: 'Negatif görüntü filtresi' },
   { id: 'threshold', name: 'Eşikleme', icon: '⚪', description: 'Eşikleme filtresi uygular' },
@@ -35,12 +38,63 @@ const FILTERS = [
   { id: 'rgb_split', name: 'RGB\'ye Ayır', icon: '🎨', description: 'RGB kanallarını ayrıştırır' },
   { id: 'warm', name: 'Sıcak', icon: '🔥', description: 'Sıcak renk tonu filtresi uygular' },
   { id: 'cold', name: 'Soğuk', icon: '❄️', description: 'Soğuk renk tonu filtresi uygular' },
+  { id: 'translate', name: 'Taşı', icon: '↔️', description: 'Görüntüyü taşı' },
+  { id: 'mirror', name: 'Aynala', icon: '🪞', description: 'Görüntüyü aynala' },
+  { id: 'shear', name: 'Eğ', icon: '↘️', description: 'Görüntüyü eğ' },
+  { id: 'scale', name: 'Ölçekle', icon: '🔍', description: 'Görüntüyü ölçekle' },
+  { id: 'rotate', name: 'Döndür', icon: '🔄', description: 'Görüntüyü döndür' },
+  { id: 'crop', name: 'Kırp', icon: '✂️', description: 'Görüntüyü kırp' },
+  { id: 'perspective', name: 'Perspektif', icon: '📐', description: 'Perspektif düzeltme uygula' },
+  { id: 'mean', name: 'Ortalama', icon: '🔲', description: 'Ortalama filtreleme uygula' },
+  { id: 'median', name: 'Medyan', icon: '📊', description: 'Medyan filtreleme uygula' },
+  { id: 'gaussian', name: 'Gauss', icon: '🌫️', description: 'Gauss filtresi uygula' },
+  { id: 'conservative', name: 'Konservatif', icon: '🛡️', description: 'Konservatif filtreleme uygula' },
+  { id: 'crimmins', name: 'Crimmins', icon: '✨', description: 'Crimmins speckle azaltma' },
+  { id: 'fourier_lpf', name: 'Fourier LPF', icon: '🔽', description: 'Fourier alçak geçiren filtre' },
+  { id: 'fourier_hpf', name: 'Fourier HPF', icon: '🔼', description: 'Fourier yüksek geçiren filtre' },
+  { id: 'bandpass', name: 'Band Geçiren', icon: '🎵', description: 'Band geçiren filtre' },
+  { id: 'bandstop', name: 'Band Durduran', icon: '🚫', description: 'Band durduran filtre' },
+  { id: 'butterworth_lpf', name: 'Butterworth LPF', icon: '🔽', description: 'Butterworth alçak geçiren filtre' },
+  { id: 'butterworth_hpf', name: 'Butterworth HPF', icon: '🔼', description: 'Butterworth yüksek geçiren filtre' },
+  { id: 'homomorphic', name: 'Homomorfik', icon: '🌈', description: 'Homomorfik filtre' },
+  { id: 'sobel', name: 'Sobel', icon: '📏', description: 'Sobel kenar tespiti' },
+  { id: 'prewitt', name: 'Prewitt', icon: '📐', description: 'Prewitt kenar tespiti' },
+  { id: 'roberts', name: 'Roberts', icon: '✳️', description: 'Roberts Cross kenar tespiti' },
+  { id: 'compass', name: 'Compass', icon: '🧭', description: 'Compass kenar tespiti' },
+  { id: 'canny', name: 'Canny', icon: '🔍', description: 'Canny kenar tespiti' },
+  { id: 'laplace', name: 'Laplace', icon: '⚡', description: 'Laplace kenar tespiti' },
+  { id: 'gabor', name: 'Gabor', icon: '🎯', description: 'Gabor filtresi' },
+  { id: 'hough', name: 'Hough', icon: '📈', description: 'Hough dönüşümü' },
+  { id: 'kmeans', name: 'K-means', icon: '🎨', description: 'K-means segmentasyon' },
+  { id: 'erode', name: 'Aşındır', icon: '🔍', description: 'Aşındırma işlemi' },
+  { id: 'dilate', name: 'Genişlet', icon: '🔍', description: 'Genişletme işlemi' },
 ];
 
 // Ayarlanabilir parametreler (İkonlar ve Sliderlar için)
 const ADJUSTMENTS = [
   { id: 'brightness', name: 'Parlaklık', icon: '☀️', min: 0.5, max: 2.0, step: 0.05, defaultValue: 1.0 },
   { id: 'contrast', name: 'Kontrast', icon: '📊', min: 0.5, max: 2.0, step: 0.05, defaultValue: 1.0 },
+  { id: 'tx', name: 'X Taşıma', icon: '↔️', min: -100, max: 100, step: 1, defaultValue: 0 },
+  { id: 'ty', name: 'Y Taşıma', icon: '↕️', min: -100, max: 100, step: 1, defaultValue: 0 },
+  { id: 'shear_x', name: 'X Eğme', icon: '↘️', min: -0.5, max: 0.5, step: 0.05, defaultValue: 0 },
+  { id: 'shear_y', name: 'Y Eğme', icon: '↗️', min: -0.5, max: 0.5, step: 0.05, defaultValue: 0 },
+  { id: 'scale_x', name: 'X Ölçek', icon: '↔️', min: 0.5, max: 2.0, step: 0.1, defaultValue: 1.0 },
+  { id: 'scale_y', name: 'Y Ölçek', icon: '↕️', min: 0.5, max: 2.0, step: 0.1, defaultValue: 1.0 },
+  { id: 'angle', name: 'Açı', icon: '🔄', min: -180, max: 180, step: 1, defaultValue: 0 },
+  { id: 'crop_x', name: 'X Kırpma', icon: '↔️', min: 0, max: 100, step: 1, defaultValue: 0 },
+  { id: 'crop_y', name: 'Y Kırpma', icon: '↕️', min: 0, max: 100, step: 1, defaultValue: 0 },
+  { id: 'crop_width', name: 'Genişlik', icon: '↔️', min: 10, max: 100, step: 1, defaultValue: 100 },
+  { id: 'crop_height', name: 'Yükseklik', icon: '↕️', min: 10, max: 100, step: 1, defaultValue: 100 },
+  { id: 'kernel_size', name: 'Kernel Boyutu', icon: '🔲', min: 3, max: 15, step: 2, defaultValue: 3 },
+  { id: 'iterations', name: 'İterasyon', icon: '🔄', min: 1, max: 10, step: 1, defaultValue: 1 },
+  { id: 'sigma', name: 'Sigma', icon: 'σ', min: 0.1, max: 5.0, step: 0.1, defaultValue: 1.0 },
+  { id: 'cutoff', name: 'Kesim Frekansı', icon: '📉', min: 1, max: 100, step: 1, defaultValue: 30 },
+  { id: 'd0', name: 'Merkez Frekans', icon: '🎯', min: 1, max: 100, step: 1, defaultValue: 30 },
+  { id: 'w', name: 'Bant Genişliği', icon: '📏', min: 1, max: 50, step: 1, defaultValue: 20 },
+  { id: 'n', name: 'Filtre Derecesi', icon: '🔢', min: 1, max: 5, step: 1, defaultValue: 2 },
+  { id: 'gamma_l', name: 'Alçak Frekans Kazancı', icon: '🔽', min: 0.1, max: 1.0, step: 0.1, defaultValue: 0.5 },
+  { id: 'gamma_h', name: 'Yüksek Frekans Kazancı', icon: '🔼', min: 1.0, max: 5.0, step: 0.1, defaultValue: 2.0 },
+  { id: 'c', name: 'Sabit', icon: '⚖️', min: 0.1, max: 5.0, step: 0.1, defaultValue: 1.0 },
 ];
 
 // Ekran genişliğine göre grid boyutu ayarla
@@ -52,13 +106,23 @@ export default function HomeScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
   const [saveOriginal, setSaveOriginal] = useState(true);
-  const [selectedFilter, setSelectedFilter] = useState('gray'); // Varsayılan filtre
+  const [selectedFilter, setSelectedFilter] = useState('original'); // Varsayılan filtreyi değiştirdik
   const [processedImageUri, setProcessedImageUri] = useState(null); // İşlenmiş görsel için state
   const [currentFilterName, setCurrentFilterName] = useState('Orijinal'); // Mevcut filtre adı
   const [isSaving, setIsSaving] = useState(false); // Kaydetme durumu için state
   const [brightness, setBrightness] = useState(1.0); // Parlaklık değeri için state
   const [contrast, setContrast] = useState(1.0); // Kontrast değeri için state
   const [activeAdjustment, setActiveAdjustment] = useState(null); // Aktif ayar için state
+  const [perspectivePoints, setPerspectivePoints] = useState([]);
+  const [isPerspectiveMode, setIsPerspectiveMode] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  
+  // Yeni state'ler
+  const [imageHistory, setImageHistory] = useState([]);
+  const [currentHistoryIndex, setCurrentHistoryIndex] = useState(-1);
+  const [originalImageUri, setOriginalImageUri] = useState(null);
+  const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+  const [modalImageUri, setModalImageUri] = useState(null);
   
   const route = useRoute();
   const navigation = useNavigation();
@@ -88,6 +152,8 @@ export default function HomeScreen() {
     setError(null);
     setProcessedImageUri(null);
     setCurrentFilterName('Orijinal');
+    setImageHistory([]);
+    setCurrentHistoryIndex(-1);
     
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
@@ -103,32 +169,91 @@ export default function HomeScreen() {
 
     if (!result.canceled) {
       setImageUri(result.assets[0].uri);
+      setOriginalImageUri(result.assets[0].uri);
+      // Parlaklık ayarını aktif et
+      setActiveAdjustment('brightness');
+      // Varsayılan değerleri ayarla
+      setBrightness(1.0);
+      setContrast(1.0);
     }
   };
 
-  // Seçilen filtreyi uygula
+  // Seçilen filtreye göre aktif ayarları belirle
+  const getActiveAdjustments = () => {
+    switch (selectedFilter) {
+      case 'mean':
+      case 'median':
+      case 'gaussian':
+      case 'conservative':
+        return ['kernel_size'];
+      case 'gaussian':
+        return ['kernel_size', 'sigma'];
+      case 'fourier_lpf':
+      case 'fourier_hpf':
+        return ['cutoff'];
+      case 'bandpass':
+      case 'bandstop':
+        return ['d0', 'w'];
+      case 'butterworth_lpf':
+      case 'butterworth_hpf':
+        return ['d0', 'n'];
+      case 'homomorphic':
+        return ['gamma_l', 'gamma_h', 'd0', 'c'];
+      case 'translate':
+        return ['tx', 'ty'];
+      case 'mirror':
+        return ['axis'];
+      case 'shear':
+        return ['shear_x', 'shear_y'];
+      case 'scale':
+        return ['scale_x', 'scale_y'];
+      case 'rotate':
+        return ['angle'];
+      case 'crop':
+        return ['crop_x', 'crop_y', 'crop_width', 'crop_height'];
+      default:
+        return ['brightness', 'contrast'];
+    }
+  };
+
+  // Filtre uygulama fonksiyonunu güncelle
   const applyFilter = async (filterId, brightnessValue = brightness, contrastValue = contrast) => {
     if (!imageUri) return;
     
     setSelectedFilter(filterId);
     setIsUploading(true);
     setError(null);
-  
-    const formData = new FormData();
-    formData.append('image', {
-      uri: imageUri,
-      name: 'photo.jpg',
-      type: 'image/jpeg',
-    });
-    
-    // Ayarlar bilgisini ekle
-    formData.append('saveOriginal', saveOriginal.toString());
-    formData.append('filter', filterId);
-    formData.append('brightness', brightnessValue.toString()); // Parlaklık değerini ekle
-    formData.append('contrast', contrastValue.toString()); // Kontrast değerini ekle
-    
+
     try {
-      console.log('Filtre uygulanıyor...', filterId, 'Parlaklık:', brightnessValue, 'Kontrast:', contrastValue);
+      console.log('Filtre uygulanıyor...', filterId);
+      
+      const formData = new FormData();
+      
+      // Eğer işlenmiş görüntü varsa, onu kullan, yoksa orijinal görüntüyü kullan
+      const imageToProcess = processedImageUri || imageUri;
+      
+      // Base64 formatındaki görüntüyü işle
+      if (imageToProcess.startsWith('data:image')) {
+        // Base64 verisini doğrudan formData'ya ekle
+        formData.append('image', imageToProcess);
+      } else {
+        formData.append('image', {
+          uri: imageToProcess,
+          name: 'photo.jpg',
+          type: 'image/jpeg',
+        });
+      }
+      
+      formData.append('saveOriginal', saveOriginal.toString());
+      formData.append('filter', filterId);
+      formData.append('brightness', brightnessValue.toString());
+      formData.append('contrast', contrastValue.toString());
+      
+      const activeAdjustments = getActiveAdjustments();
+      activeAdjustments.forEach(adjustment => {
+        const value = getActiveAdjustmentValue(adjustment);
+        formData.append(adjustment, value.toString());
+      });
       
       const response = await fetch(`${API_URL}/process-image`, {
         method: 'POST',
@@ -136,9 +261,9 @@ export default function HomeScreen() {
           'Content-Type': 'multipart/form-data',
         },
         body: formData,
-        timeout: 15000, // 15 saniye zaman aşımı
+        timeout: 30000, // Timeout süresini 30 saniyeye çıkar
       });
-  
+
       if (!response.ok) {
         throw new Error(`Sunucu hatası: ${response.status}`);
       }
@@ -149,15 +274,26 @@ export default function HomeScreen() {
         throw new Error('Sunucudan geçerli veri alınamadı');
       }
       
-      // İşlenmiş görseli göster
-      setProcessedImageUri(`data:image/jpeg;base64,${data.processed_image_base64}`);
+      const newImageUri = `data:image/jpeg;base64,${data.processed_image_base64}`;
+      setProcessedImageUri(newImageUri);
       
-      // Filtre adını güncelle
       const filterInfo = FILTERS.find(f => f.id === filterId);
-      setCurrentFilterName(filterInfo ? filterInfo.name : 'Filtre');
+      const newFilterName = filterInfo ? filterInfo.name : 'Filtre';
+      setCurrentFilterName(newFilterName);
+      
+      // Geçmişi güncelle
+      const newHistory = imageHistory.slice(0, currentHistoryIndex + 1);
+      newHistory.push({
+        imageUri: newImageUri,
+        filterName: newFilterName,
+        brightness: brightnessValue,
+        contrast: contrastValue
+      });
+      setImageHistory(newHistory);
+      setCurrentHistoryIndex(newHistory.length - 1);
       
       console.log("İşlem başarılı");
-  
+
     } catch (error) {
       console.error('Hata detayı:', error);
       setError(error.message || 'Sunucuya bağlanılamadı');
@@ -255,6 +391,25 @@ export default function HomeScreen() {
     }
   };
 
+  // Parlaklık ve Kontrast için buton işleyicileri
+  const handleBrightnessChange = (increment) => {
+    const newValue = brightness + (increment ? 0.05 : -0.05);
+    if (newValue >= 0.5 && newValue <= 2.0) {
+      setBrightness(newValue);
+      // Seçili filtreyi kullan
+      applyFilter(selectedFilter, newValue, contrast);
+    }
+  };
+
+  const handleContrastChange = (increment) => {
+    const newValue = contrast + (increment ? 0.05 : -0.05);
+    if (newValue >= 0.5 && newValue <= 2.0) {
+      setContrast(newValue);
+      // Seçili filtreyi kullan
+      applyFilter(selectedFilter, brightness, newValue);
+    }
+  };
+
   // Slider kaydırma tamamlandığında çağrılır
   const handleSliderComplete = () => {
     if (imageUri && selectedFilter) {
@@ -277,6 +432,167 @@ export default function HomeScreen() {
     </TouchableOpacity>
   );
 
+  // Görüntü boyutlarını al
+  const handleImageLoad = (event) => {
+    const { width, height } = event.nativeEvent.source;
+    console.log('Görüntü boyutları:', width, height);
+    setImageDimensions({ width, height });
+  };
+
+  // Görseli büyütme fonksiyonu
+  const handleImageZoom = (imageUri) => {
+    setModalImageUri(imageUri);
+    setIsImageModalVisible(true);
+  };
+
+  // Perspektif noktası ekle
+  const handlePerspectivePoint = (event) => {
+    if (!isPerspectiveMode) return;
+
+    const { locationX, locationY } = event.nativeEvent;
+    
+    // Görüntü boyutlarına göre koordinatları normalize et
+    const normalizedX = (locationX / imageDimensions.width) * 100;
+    const normalizedY = (locationY / imageDimensions.height) * 100;
+    
+    const newPoint = [normalizedX, normalizedY];
+    
+    if (perspectivePoints.length < 4) {
+      setPerspectivePoints([...perspectivePoints, newPoint]);
+      
+      if (perspectivePoints.length === 3) {
+        // Son nokta eklendiğinde perspektif düzeltmeyi uygula
+        applyPerspectiveCorrection();
+      }
+    }
+  };
+
+  // Perspektif düzeltmeyi uygula
+  const applyPerspectiveCorrection = async () => {
+    if (perspectivePoints.length !== 4) return;
+
+    setIsUploading(true);
+    setError(null);
+
+    // Noktaları yüzde değerlerinden piksel değerlerine çevir
+    const pixelPoints = perspectivePoints.map(point => [
+      (point[0] / 100) * imageDimensions.width,
+      (point[1] / 100) * imageDimensions.height
+    ]);
+
+    const formData = new FormData();
+    formData.append('image', {
+      uri: imageUri,
+      name: 'photo.jpg',
+      type: 'image/jpeg',
+    });
+    
+    formData.append('saveOriginal', saveOriginal.toString());
+    formData.append('filter', 'perspective');
+    formData.append('points', JSON.stringify(pixelPoints));
+
+    try {
+      console.log('Gönderilen noktalar:', pixelPoints);
+      
+      const response = await fetch(`${API_URL}/process-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Sunucu hatası: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.processed_image_base64) {
+        throw new Error('Sunucudan geçerli veri alınamadı');
+      }
+      
+      setProcessedImageUri(`data:image/jpeg;base64,${data.processed_image_base64}`);
+      setCurrentFilterName('Perspektif Düzeltme');
+      
+    } catch (error) {
+      console.error('Hata detayı:', error);
+      setError(error.message || 'Sunucuya bağlanılamadı');
+      Alert.alert("Hata", `İşlem sırasında bir sorun oluştu: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+      setIsPerspectiveMode(false);
+      setPerspectivePoints([]);
+    }
+  };
+
+  // Perspektif modunu başlat
+  const startPerspectiveMode = () => {
+    setSelectedFilter('perspective');
+    setIsPerspectiveMode(true);
+    setPerspectivePoints([]);
+    Alert.alert(
+      "Perspektif Düzeltme",
+      "Lütfen görüntünün dört köşesini sırasıyla seçin:\n1. Sol üst\n2. Sağ üst\n3. Sağ alt\n4. Sol alt",
+      [{ text: 'Tamam' }]
+    );
+  };
+
+  // Filtre seçimini güncelle
+  const handleFilterSelect = (filterId) => {
+    if (filterId === 'perspective') {
+      startPerspectiveMode();
+    } else {
+      setSelectedFilter(filterId);
+      setIsPerspectiveMode(false);
+      setPerspectivePoints([]);
+      applyFilter(filterId);
+    }
+  };
+
+  // Sıfırlama fonksiyonu
+  const resetImage = () => {
+    if (originalImageUri) {
+      setImageUri(originalImageUri);
+      setProcessedImageUri(null);
+      setCurrentFilterName('Orijinal');
+      setImageHistory([]);
+      setCurrentHistoryIndex(-1);
+      setBrightness(1.0);
+      setContrast(1.0);
+    }
+  };
+
+  // Geri alma fonksiyonu
+  const undoAction = () => {
+    if (currentHistoryIndex > 0) {
+      const newIndex = currentHistoryIndex - 1;
+      setCurrentHistoryIndex(newIndex);
+      setProcessedImageUri(imageHistory[newIndex].imageUri);
+      setCurrentFilterName(imageHistory[newIndex].filterName);
+      setBrightness(imageHistory[newIndex].brightness);
+      setContrast(imageHistory[newIndex].contrast);
+    }
+  };
+
+  // İleri alma fonksiyonu
+  const redoAction = () => {
+    if (currentHistoryIndex < imageHistory.length - 1) {
+      const newIndex = currentHistoryIndex + 1;
+      setCurrentHistoryIndex(newIndex);
+      setProcessedImageUri(imageHistory[newIndex].imageUri);
+      setCurrentFilterName(imageHistory[newIndex].filterName);
+      setBrightness(imageHistory[newIndex].brightness);
+      setContrast(imageHistory[newIndex].contrast);
+    }
+  };
+
+  // Modal'ı kapatma fonksiyonu
+  const closeImageModal = () => {
+    setIsImageModalVisible(false);
+    setModalImageUri(null);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scrollView}>
@@ -290,36 +606,80 @@ export default function HomeScreen() {
           </TouchableOpacity>
           
           {imageUri && !processedImageUri && (
-            <View style={styles.imageContainer}>
-              <Text style={styles.imageLabel}>Orijinal Görsel</Text>
-              <Image 
-                source={{ uri: imageUri }} 
-                style={styles.image}
-              />
-            </View>
+            <TouchableOpacity 
+              onPress={() => handleImageZoom(imageUri)}
+              activeOpacity={0.9}
+            >
+              <View style={styles.imageContainer}>
+                <Text style={styles.imageLabel}>Orijinal Görsel</Text>
+                <Image 
+                  source={{ uri: imageUri }} 
+                  style={styles.image}
+                  onLoad={handleImageLoad}
+                />
+                {isPerspectiveMode && perspectivePoints.map((point, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.perspectivePoint,
+                      { left: point[0] - 10, top: point[1] - 10 }
+                    ]}
+                  >
+                    <Text style={styles.perspectivePointText}>{index + 1}</Text>
+                  </View>
+                ))}
+              </View>
+            </TouchableOpacity>
           )}
           
           {processedImageUri && (
-            <View style={styles.imageContainer}>
-              <View style={styles.imageHeaderContainer}>
-                <Text style={styles.imageLabel}>{currentFilterName} Uygulanmış</Text>
-                <TouchableOpacity 
-                  style={styles.saveButton}
-                  onPress={saveProcessedImage}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <ActivityIndicator size="small" color="#4CAF50" />
-                  ) : (
-                    <Ionicons name="save-outline" size={18} color="#4CAF50" />
-                  )}
-                </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => handleImageZoom(processedImageUri)}
+              activeOpacity={0.9}
+            >
+              <View style={styles.imageContainer}>
+                <View style={styles.imageHeaderContainer}>
+                  <Text style={styles.imageLabel}>{currentFilterName} Uygulanmış</Text>
+                  <View style={styles.buttonContainer}>
+                    <TouchableOpacity 
+                      style={[styles.actionButton, styles.undoButton]}
+                      onPress={undoAction}
+                      disabled={currentHistoryIndex <= 0}
+                    >
+                      <Ionicons name="arrow-undo" size={18} color="#4CAF50" />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.actionButton, styles.redoButton]}
+                      onPress={redoAction}
+                      disabled={currentHistoryIndex >= imageHistory.length - 1}
+                    >
+                      <Ionicons name="arrow-redo" size={18} color="#4CAF50" />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.actionButton, styles.resetButton]}
+                      onPress={resetImage}
+                    >
+                      <Ionicons name="refresh" size={18} color="#4CAF50" />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.actionButton, styles.saveButton]}
+                      onPress={saveProcessedImage}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <ActivityIndicator size="small" color="#4CAF50" />
+                      ) : (
+                        <Ionicons name="save-outline" size={18} color="#4CAF50" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Image 
+                  source={{ uri: processedImageUri }} 
+                  style={styles.image}
+                />
               </View>
-              <Image 
-                source={{ uri: processedImageUri }} 
-                style={styles.image}
-              />
-            </View>
+            </TouchableOpacity>
           )}
           
           {imageUri && (
@@ -328,29 +688,28 @@ export default function HomeScreen() {
               <FlatList
                 ref={flatListRef}
                 data={FILTERS}
-                renderItem={renderFilterItem}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.filterItem,
+                      selectedFilter === item.id && styles.selectedFilterItem
+                    ]}
+                    onPress={() => handleFilterSelect(item.id)}
+                    disabled={isUploading || !imageUri}
+                  >
+                    <Text style={styles.filterIcon}>{item.icon}</Text>
+                    <Text style={styles.filterName}>{item.name}</Text>
+                  </TouchableOpacity>
+                )}
                 keyExtractor={(item) => item.id}
                 horizontal={true}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.filtersList}
-                pagingEnabled={false}
-                disableIntervalMomentum={true}
-                decelerationRate="fast"
-                snapToOffsets={FILTERS.map((_, i) => (i * (ITEM_WIDTH + 6)))}
-                snapToAlignment="start"
-                onScrollEndDrag={e => {
-                  const scrollX = e.nativeEvent.contentOffset.x;
-                  const itemIndex = Math.round(scrollX / (ITEM_WIDTH + 6));
-                  flatListRef.current?.scrollToOffset({
-                    offset: itemIndex * (ITEM_WIDTH + 6),
-                    animated: true
-                  });
-                }}
               />
             </View>
           )}
           
-          {processedImageUri && (
+          {imageUri && (
             <View style={styles.adjustmentsContainer}>
               <Text style={styles.adjustmentsTitle}>Ayarlar:</Text>
               <View style={styles.adjustmentsRow}>
@@ -371,27 +730,79 @@ export default function HomeScreen() {
               </View>
               
               {activeAdjustment && (
-                <View style={styles.sliderContainer}>
-                  <Text style={styles.sliderValue}>
-                    {activeAdjustment === 'brightness' ? 'Parlaklık' : 'Kontrast'}: 
-                    {getActiveAdjustmentValue().toFixed(2)}x
-                  </Text>
-                  <Slider
-                    style={styles.slider}
-                    minimumValue={getActiveAdjustmentSettings().min}
-                    maximumValue={getActiveAdjustmentSettings().max}
-                    step={getActiveAdjustmentSettings().step}
-                    value={getActiveAdjustmentValue()}
-                    onValueChange={handleSliderValueChange}
-                    onSlidingComplete={handleSliderComplete}
-                    minimumTrackTintColor="#4CAF50"
-                    maximumTrackTintColor="#000000"
-                    thumbTintColor="#4CAF50"
-                  />
-                  <View style={styles.sliderLabels}>
-                    <Text style={styles.sliderMinLabel}>{getActiveAdjustmentSettings().min}x</Text>
-                    <Text style={styles.sliderMaxLabel}>{getActiveAdjustmentSettings().max}x</Text>
-                  </View>
+                <View style={styles.adjustmentControls}>
+                  {activeAdjustment === 'brightness' && (
+                    <View style={styles.buttonControls}>
+                      <Text style={styles.adjustmentValue}>
+                        Parlaklık: {brightness.toFixed(2)}x
+                      </Text>
+                      <View style={styles.buttonRow}>
+                        <TouchableOpacity
+                          style={[styles.controlButton, styles.decreaseButton]}
+                          onPress={() => handleBrightnessChange(false)}
+                          disabled={brightness <= 0.5}
+                        >
+                          <Text style={styles.buttonText}>-</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.controlButton, styles.increaseButton]}
+                          onPress={() => handleBrightnessChange(true)}
+                          disabled={brightness >= 2.0}
+                        >
+                          <Text style={styles.buttonText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {activeAdjustment === 'contrast' && (
+                    <View style={styles.buttonControls}>
+                      <Text style={styles.adjustmentValue}>
+                        Kontrast: {contrast.toFixed(2)}x
+                      </Text>
+                      <View style={styles.buttonRow}>
+                        <TouchableOpacity
+                          style={[styles.controlButton, styles.decreaseButton]}
+                          onPress={() => handleContrastChange(false)}
+                          disabled={contrast <= 0.5}
+                        >
+                          <Text style={styles.buttonText}>-</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.controlButton, styles.increaseButton]}
+                          onPress={() => handleContrastChange(true)}
+                          disabled={contrast >= 2.0}
+                        >
+                          <Text style={styles.buttonText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {activeAdjustment !== 'brightness' && activeAdjustment !== 'contrast' && (
+                    <View style={styles.sliderContainer}>
+                      <Text style={styles.sliderValue}>
+                        {activeAdjustment === 'brightness' ? 'Parlaklık' : 'Kontrast'}: 
+                        {getActiveAdjustmentValue().toFixed(2)}x
+                      </Text>
+                      <Slider
+                        style={styles.slider}
+                        minimumValue={getActiveAdjustmentSettings().min}
+                        maximumValue={getActiveAdjustmentSettings().max}
+                        step={getActiveAdjustmentSettings().step}
+                        value={getActiveAdjustmentValue()}
+                        onValueChange={handleSliderValueChange}
+                        onSlidingComplete={handleSliderComplete}
+                        minimumTrackTintColor="#4CAF50"
+                        maximumTrackTintColor="#000000"
+                        thumbTintColor="#4CAF50"
+                      />
+                      <View style={styles.sliderLabels}>
+                        <Text style={styles.sliderMinLabel}>{getActiveAdjustmentSettings().min}x</Text>
+                        <Text style={styles.sliderMaxLabel}>{getActiveAdjustmentSettings().max}x</Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -406,6 +817,30 @@ export default function HomeScreen() {
           {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
       </ScrollView>
+
+      {/* Büyük Görsel Modal */}
+      <Modal
+        visible={isImageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeImageModal}
+      >
+        <TouchableWithoutFeedback onPress={closeImageModal}>
+          <View style={styles.modalContainer}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                {modalImageUri && (
+                  <Image
+                    source={{ uri: modalImageUri }}
+                    style={styles.modalImage}
+                    resizeMode="contain"
+                  />
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -446,10 +881,27 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
   },
-  saveButton: {
+  buttonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
     padding: 4,
     borderRadius: 12,
     backgroundColor: '#f0f0f0',
+    marginLeft: 4,
+  },
+  undoButton: {
+    opacity: 0.7,
+  },
+  redoButton: {
+    opacity: 0.7,
+  },
+  resetButton: {
+    backgroundColor: '#ffebee',
+  },
+  saveButton: {
+    backgroundColor: '#e8f5e9',
   },
   image: {
     width: 220,
@@ -563,6 +1015,48 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: 'bold',
   },
+  adjustmentControls: {
+    padding: 10,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonControls: {
+    padding: 10,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  controlButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 10,
+  },
+  decreaseButton: {
+    backgroundColor: '#ffebee',
+  },
+  increaseButton: {
+    backgroundColor: '#e8f5e9',
+  },
+  buttonText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+  adjustmentValue: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 5,
+  },
   sliderContainer: {
     padding: 6,
     backgroundColor: '#f9f9f9',
@@ -604,5 +1098,35 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 5,
     marginVertical: 10,
+  },
+  perspectivePoint: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    backgroundColor: '#4CAF50',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  perspectivePointText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalImage: {
+    width: '100%',
+    height: '100%',
   },
 });
