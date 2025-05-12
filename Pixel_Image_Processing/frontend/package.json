@@ -17,6 +17,7 @@
     "@react-navigation/native-stack": "^7.3.10",
     "expo": "~52.0.46",
     "expo-file-system": "^18.0.12",
+    "expo-image-cropper": "^1.0.9",
     "expo-image-picker": "~16.0.6",
     "expo-media-library": "^17.0.6",
     "expo-status-bar": "~2.0.1",

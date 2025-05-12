@@ -14,7 +14,8 @@ import {
   SafeAreaView,
   Platform,
   Modal,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  Animated
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
@@ -593,11 +594,52 @@ export default function HomeScreen() {
     setModalImageUri(null);
   };
 
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const snackbarAnimation = useRef(new Animated.Value(0)).current;
+
+  // Snackbar gösterme fonksiyonu
+  const showSnackbar = (message) => {
+    setSnackbarMessage(message);
+    setSnackbarVisible(true);
+    Animated.sequence([
+      Animated.timing(snackbarAnimation, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2000),
+      Animated.timing(snackbarAnimation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setSnackbarVisible(false);
+    });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.container}>
-          {/* Fotoğraf Seç artı butonu */}
+          {/* Üst Kısım - Filtreler */}
+          {imageUri && (
+            <View style={styles.filterContainer}>
+              <Text style={styles.filterTitle}>İşlem Seçenekleri</Text>
+              <FlatList
+                ref={flatListRef}
+                data={FILTERS}
+                renderItem={renderFilterItem}
+                keyExtractor={(item) => item.id}
+                horizontal={true}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filtersList}
+              />
+            </View>
+          )}
+
+          {/* Orta Kısım - Görsel Alanı */}
           <TouchableOpacity 
             style={styles.addButton}
             onPress={pickImage}
@@ -610,7 +652,7 @@ export default function HomeScreen() {
               onPress={() => handleImageZoom(imageUri)}
               activeOpacity={0.9}
             >
-              <View style={styles.imageContainer}>
+              <View style={styles.imageFrame}>
                 <Text style={styles.imageLabel}>Orijinal Görsel</Text>
                 <Image 
                   source={{ uri: imageUri }} 
@@ -637,7 +679,7 @@ export default function HomeScreen() {
               onPress={() => handleImageZoom(processedImageUri)}
               activeOpacity={0.9}
             >
-              <View style={styles.imageContainer}>
+              <View style={styles.imageFrame}>
                 <View style={styles.imageHeaderContainer}>
                   <Text style={styles.imageLabel}>{currentFilterName} Uygulanmış</Text>
                   <View style={styles.buttonContainer}>
@@ -681,37 +723,11 @@ export default function HomeScreen() {
               </View>
             </TouchableOpacity>
           )}
-          
-          {imageUri && (
-            <View style={styles.filterContainer}>
-              <Text style={styles.filterTitle}>İşlemi Seçin:</Text>
-              <FlatList
-                ref={flatListRef}
-                data={FILTERS}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.filterItem,
-                      selectedFilter === item.id && styles.selectedFilterItem
-                    ]}
-                    onPress={() => handleFilterSelect(item.id)}
-                    disabled={isUploading || !imageUri}
-                  >
-                    <Text style={styles.filterIcon}>{item.icon}</Text>
-                    <Text style={styles.filterName}>{item.name}</Text>
-                  </TouchableOpacity>
-                )}
-                keyExtractor={(item) => item.id}
-                horizontal={true}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filtersList}
-              />
-            </View>
-          )}
-          
+
+          {/* Alt Kısım - Ayarlar */}
           {imageUri && (
             <View style={styles.adjustmentsContainer}>
-              <Text style={styles.adjustmentsTitle}>Ayarlar:</Text>
+              <Text style={styles.adjustmentsTitle}>Ayarlar</Text>
               <View style={styles.adjustmentsRow}>
                 {ADJUSTMENTS.map((item) => (
                   <TouchableOpacity
@@ -732,74 +748,49 @@ export default function HomeScreen() {
               {activeAdjustment && (
                 <View style={styles.adjustmentControls}>
                   {activeAdjustment === 'brightness' && (
-                    <View style={styles.buttonControls}>
+                    <View style={styles.compactControls}>
                       <Text style={styles.adjustmentValue}>
                         Parlaklık: {brightness.toFixed(2)}x
                       </Text>
-                      <View style={styles.buttonRow}>
+                      <View style={styles.compactButtonRow}>
                         <TouchableOpacity
-                          style={[styles.controlButton, styles.decreaseButton]}
+                          style={[styles.compactButton, styles.decreaseButton]}
                           onPress={() => handleBrightnessChange(false)}
                           disabled={brightness <= 0.5}
                         >
-                          <Text style={styles.buttonText}>-</Text>
+                          <Text style={styles.compactButtonText}>-</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={[styles.controlButton, styles.increaseButton]}
+                          style={[styles.compactButton, styles.increaseButton]}
                           onPress={() => handleBrightnessChange(true)}
                           disabled={brightness >= 2.0}
                         >
-                          <Text style={styles.buttonText}>+</Text>
+                          <Text style={styles.compactButtonText}>+</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
                   )}
                   
                   {activeAdjustment === 'contrast' && (
-                    <View style={styles.buttonControls}>
+                    <View style={styles.compactControls}>
                       <Text style={styles.adjustmentValue}>
                         Kontrast: {contrast.toFixed(2)}x
                       </Text>
-                      <View style={styles.buttonRow}>
+                      <View style={styles.compactButtonRow}>
                         <TouchableOpacity
-                          style={[styles.controlButton, styles.decreaseButton]}
+                          style={[styles.compactButton, styles.decreaseButton]}
                           onPress={() => handleContrastChange(false)}
                           disabled={contrast <= 0.5}
                         >
-                          <Text style={styles.buttonText}>-</Text>
+                          <Text style={styles.compactButtonText}>-</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={[styles.controlButton, styles.increaseButton]}
+                          style={[styles.compactButton, styles.increaseButton]}
                           onPress={() => handleContrastChange(true)}
                           disabled={contrast >= 2.0}
                         >
-                          <Text style={styles.buttonText}>+</Text>
+                          <Text style={styles.compactButtonText}>+</Text>
                         </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-                  
-                  {activeAdjustment !== 'brightness' && activeAdjustment !== 'contrast' && (
-                    <View style={styles.sliderContainer}>
-                      <Text style={styles.sliderValue}>
-                        {activeAdjustment === 'brightness' ? 'Parlaklık' : 'Kontrast'}: 
-                        {getActiveAdjustmentValue().toFixed(2)}x
-                      </Text>
-                      <Slider
-                        style={styles.slider}
-                        minimumValue={getActiveAdjustmentSettings().min}
-                        maximumValue={getActiveAdjustmentSettings().max}
-                        step={getActiveAdjustmentSettings().step}
-                        value={getActiveAdjustmentValue()}
-                        onValueChange={handleSliderValueChange}
-                        onSlidingComplete={handleSliderComplete}
-                        minimumTrackTintColor="#4CAF50"
-                        maximumTrackTintColor="#000000"
-                        thumbTintColor="#4CAF50"
-                      />
-                      <View style={styles.sliderLabels}>
-                        <Text style={styles.sliderMinLabel}>{getActiveAdjustmentSettings().min}x</Text>
-                        <Text style={styles.sliderMaxLabel}>{getActiveAdjustmentSettings().max}x</Text>
                       </View>
                     </View>
                   )}
@@ -817,6 +808,27 @@ export default function HomeScreen() {
           {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
       </ScrollView>
+
+      {/* Snackbar */}
+      {snackbarVisible && (
+        <Animated.View
+          style={[
+            styles.snackbar,
+            {
+              transform: [
+                {
+                  translateY: snackbarAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [100, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.snackbarText}>{snackbarMessage}</Text>
+        </Animated.View>
+      )}
 
       {/* Büyük Görsel Modal */}
       <Modal
@@ -862,10 +874,18 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: '#f5f5f5'
   },
-  imageContainer: {
-    marginVertical: 8,
+  imageFrame: {
+    marginVertical: 12,
     alignItems: 'center',
     width: '100%',
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   imageHeaderContainer: {
     flexDirection: 'row',
@@ -904,9 +924,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#e8f5e9',
   },
   image: {
-    width: 220,
-    height: 220,
-    borderRadius: 6,
+    width: 240,
+    height: 240,
+    borderRadius: 12,
   },
   loadingContainer: {
     position: 'absolute',
@@ -928,8 +948,15 @@ const styles = StyleSheet.create({
   },
   filterContainer: {
     width: '100%',
-    marginBottom: 8,
-    marginTop: 8,
+    marginBottom: 12,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   filterTitle: {
     fontSize: 12,
@@ -968,19 +995,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     textAlign: 'center',
   },
-  // Ayarlar için stiller
   adjustmentsContainer: {
     width: '100%',
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 12,
     backgroundColor: 'white',
-    borderRadius: 6,
-    padding: 8,
+    borderRadius: 16,
+    padding: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   adjustmentsTitle: {
     fontSize: 12,
@@ -1021,69 +1046,53 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonControls: {
-    padding: 10,
+  compactControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 8,
     backgroundColor: '#f9f9f9',
     borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginTop: 8,
   },
-  controlButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  compactButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  compactButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 10,
+    marginHorizontal: 4,
   },
-  decreaseButton: {
-    backgroundColor: '#ffebee',
-  },
-  increaseButton: {
-    backgroundColor: '#e8f5e9',
-  },
-  buttonText: {
-    fontSize: 20,
+  compactButtonText: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#4CAF50',
   },
-  adjustmentValue: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 5,
-  },
-  sliderContainer: {
-    padding: 6,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  sliderValue: {
-    textAlign: 'center',
-    fontSize: 10,
-    marginBottom: 4,
-  },
-  slider: {
-    width: '100%',
-    height: 25,
-  },
-  sliderLabels: {
+  snackbar: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    padding: 12,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  sliderMinLabel: {
-    fontSize: 8,
-    color: '#666',
-  },
-  sliderMaxLabel: {
-    fontSize: 8,
-    color: '#666',
+  snackbarText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
   addButton: {
     backgroundColor: '#4CAF50',
